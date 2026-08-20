@@ -162,6 +162,54 @@ local function copy_file(source, destination)
     return true, data;
 end
 
+local function escape_pattern(value)
+    return value:gsub('([^%w])', '%%%1');
+end
+
+local function find_job_profile(root, player_name, server_id, job)
+    local escaped_name = escape_pattern(player_name:lower());
+    local escaped_job = escape_pattern(job:lower());
+    local files = ashita.fs.get_dir(root, '.*\\.lua$', true) or {};
+    local candidates = {};
+
+    for _, relative_path in ipairs(files) do
+        local normalized = relative_path:lower():gsub('/', '\\');
+        local is_flat_profile = normalized == (player_name .. '_' .. job .. '.lua'):lower();
+        local is_scoped_profile = normalized:match('^' .. escaped_name .. '_%d+\\' .. escaped_job .. '%.lua$') ~= nil;
+
+        if (is_flat_profile or is_scoped_profile) then
+            candidates[#candidates + 1] = {
+                path = root .. relative_path,
+                normalized = normalized,
+            };
+        end
+    end
+
+    if (server_id ~= nil and server_id ~= 0) then
+        local expected = ('%s_%u\\%s.lua'):format(player_name, server_id, job):lower();
+        for _, candidate in ipairs(candidates) do
+            if (candidate.normalized == expected) then
+                return candidate.path;
+            end
+        end
+    end
+
+    if (#candidates == 1) then
+        return candidates[1].path;
+    end
+    if (#candidates == 0) then
+        return nil, ('Could not find a BRD LuAshitacast profile for %s under %s'):format(player_name, root);
+    end
+
+    local paths = {};
+    for _, candidate in ipairs(candidates) do
+        paths[#paths + 1] = candidate.path;
+    end
+    table.sort(paths);
+    return nil, ('Found multiple BRD LuAshitacast profiles for %s; refusing to choose: %s')
+        :format(player_name, table.concat(paths, ', '));
+end
+
 function sync.run()
     local memory = AshitaCore:GetMemoryManager();
     local player = memory:GetPlayer();
@@ -171,11 +219,10 @@ function sync.run()
     job = job:trimend('\x00');
     if (job:upper() ~= 'BRD') then return false, 'syncbrd can only run while on BRD.'; end
     local name = party:GetMemberName(0) or 'Character';
+    local server_id = party:GetMemberServerId(0);
     local root = AshitaCore:GetInstallPath() .. 'config\\addons\\luashitacast\\';
-    local path = root .. name .. '_' .. job .. '.lua';
-    if (not ashita.fs.exists(path)) then
-        return false, ('Could not find LuAshitacast profile: %s'):format(path);
-    end
+    local path, profile_error = find_job_profile(root, name, server_id, job);
+    if (path == nil) then return false, profile_error; end
 
     local items = inventory_items();
     local song = best_set(items, 'song', 2);
@@ -207,19 +254,22 @@ function sync.run()
         if (item.name == "Sprinter's Shoes") then sets.Mazurka = { Feet = item.name }; end
     end
 
-    local ok, source = copy_file(path, path .. '.syncbrd.bak');
-    if (not ok) then return false, 'Could not back up the LuAshitacast profile.'; end
+    local input = io.open(path, 'rb');
+    if (input == nil) then return false, ('Could not read LuAshitacast profile: %s'):format(path); end
+    local source = input:read('*a'); input:close();
     local start_at = source:find('local%s+sets%s*=%s*{');
     local marker_at = source:find('profile%.Sets%s*=%s*sets%s*;');
     if (start_at == nil or marker_at == nil or marker_at <= start_at) then
         return false, 'Could not locate the sets block in the LuAshitacast profile.';
     end
+    local ok = copy_file(path, path .. '.syncbrd.bak');
+    if (not ok) then return false, 'Could not back up the LuAshitacast profile.'; end
     local new_source = source:sub(1, start_at - 1) .. render_sets(sets) .. '\n\n'
         .. source:sub(marker_at);
     local output = io.open(path, 'wb');
     if (output == nil) then return false, 'Could not write the LuAshitacast profile.'; end
     output:write(new_source); output:close();
-    return true, ('Updated BRD profile from %d equippable inventory items.'):format(#items);
+    return true, ('Updated BRD profile %s from %d equippable inventory items.'):format(path, #items);
 end
 
 return sync;

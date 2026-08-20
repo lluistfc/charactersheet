@@ -86,10 +86,23 @@ Lua interfaces do not expose completed mission/quest bitfields, key items, or
 most non-item currencies. Containers not loaded by the game client are reported
 as unavailable rather than silently treated as empty.
 
-`syncbrd` writes the normal current-job gear export, rebuilds the BRD profile's
-Idle, Engaged, Song, and song-specific sets from currently available equippable
-gear, lists unused items from the main Inventory bag, then reloads the profile.
-It preserves the profile's event logic and writes a `.syncbrd.bak` backup first.
+`syncbrd` is a BRD-specific profile builder, not a generic file-sync command.
+It evaluates the character's currently available, equippable gear with custom
+Bard logic and selects equipment for each situation represented by the Idle,
+Engaged, Song, BuffSong, and individual song-family sets. The scoring favors the
+stats relevant to each purpose, such as survivability while idle, melee stats
+while engaged, and CHR, Magic Accuracy, Singing/Instrument skill, song duration,
+and Fast Cast for songs. It then updates those sets in the BRD LuAshitacast
+profile, lists unused main-Inventory items, and reloads the profile.
+
+It discovers both LuAshitacast's `<Character>_BRD.lua` and
+`<Character>_<server-id>/BRD.lua` profile layouts, preserves the profile's event
+logic, and writes a `.syncbrd.bak` backup first. If multiple profiles match and
+the current server ID does not identify one, it stops without modifying them.
+
+Only BRD is supported today because each job needs its own purpose-built gear
+selection rules and profile sets. Similar synchronization may be added for
+other jobs someday, but that expansion is not currently promised or scheduled.
 
 ```text
 /addon unload equipviewer
