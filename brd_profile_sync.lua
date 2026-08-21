@@ -40,9 +40,19 @@ local function score(item, purpose)
     local fast_cast = value(text, 'fast cast"?%+(%d+)%%');
     local damage_taken = value(text, 'damage taken%-([%d]+)%%');
 
-    if (purpose == 'engaged') then
-        return (tonumber(item.damage) or 0) * 8 + accuracy * 5 + attack * 3
+    local delay = tonumber(item.delay) or 0;
+    local weapon_dps = delay > 0 and ((tonumber(item.damage) or 0) * 60 / delay) or 0;
+    local weapon_delay_penalty = delay > 0 and delay * 0.05 or 0;
+
+    if (purpose == 'damage') then
+        return weapon_dps * 20 - weapon_delay_penalty + accuracy * 5 + attack * 3
             + haste * 12 + str * 2 + dex * 2 + defense * 0.15;
+    elseif (purpose == 'hybrid') then
+        local damage_score = weapon_dps * 20 - weapon_delay_penalty + accuracy * 5 + attack * 3
+            + haste * 12 + str * 2 + dex * 2 + defense * 0.15;
+        local support_score = magic_accuracy * 7 + chr * 4 + singing * 8 + wind * 8
+            + string_skill * 8 + duration * 12 + fast_cast * 2 + defense * 0.05;
+        return damage_score * 0.65 + support_score * 0.35;
     elseif (purpose == 'song') then
         return magic_accuracy * 7 + chr * 4 + singing * 8 + wind * 8
             + string_skill * 8 + duration * 12 + fast_cast * 2 + defense * 0.05;
@@ -77,6 +87,7 @@ local function inventory_items()
                             text = resource_text(resource.Description):lower(),
                             slots = slots,
                             damage = tonumber(resource.Damage) or 0,
+                            delay = tonumber(resource.Delay) or 0,
                             defense = tonumber(resource.Defense) or 0,
                         };
                     end
@@ -210,7 +221,12 @@ local function find_job_profile(root, player_name, server_id, job)
         :format(player_name, table.concat(paths, ', '));
 end
 
-function sync.run()
+function sync.run(mode)
+    mode = (mode or 'hybrid'):lower();
+    if (mode == 'dmg') then mode = 'damage'; end
+    if (mode ~= 'support' and mode ~= 'damage' and mode ~= 'hybrid') then
+        return false, 'Unknown BRD mode. Use support, dmg, or hybrid.';
+    end
     local memory = AshitaCore:GetMemoryManager();
     local player = memory:GetPlayer();
     local party = memory:GetParty();
@@ -226,9 +242,10 @@ function sync.run()
 
     local items = inventory_items();
     local song = best_set(items, 'song', 2);
+    local combat_purpose = mode == 'support' and 'song' or mode;
     local sets = {
         Idle = best_set(items, 'idle', 0),
-        Engaged = best_set(items, 'engaged', 0),
+        Engaged = best_set(items, combat_purpose, 0),
         Song = song,
         BuffSong = { Hands = song.Hands, Legs = song.Legs },
     };
@@ -269,7 +286,8 @@ function sync.run()
     local output = io.open(path, 'wb');
     if (output == nil) then return false, 'Could not write the LuAshitacast profile.'; end
     output:write(new_source); output:close();
-    return true, ('Updated BRD profile %s from %d equippable inventory items.'):format(path, #items);
+    return true, ('Updated BRD profile %s in %s mode from %d equippable inventory items.')
+        :format(path, mode, #items);
 end
 
 return sync;

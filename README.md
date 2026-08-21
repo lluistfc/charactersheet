@@ -67,7 +67,7 @@ the equipment grid.
 /charactersheet toggle
 /charactersheet exportall
 /charactersheet exportgear
-/charactersheet syncbrd
+/charactersheet syncbrd [support|dmg|hybrid]
 /charactersheet gearinfo
 /charactersheet gearinfo show|hide|toggle
 /charactersheet gearinfo lock
@@ -87,6 +87,12 @@ most non-item currencies. Containers not loaded by the game client are reported
 as unavailable rather than silently treated as empty.
 
 `syncbrd` is a BRD-specific profile builder, not a generic file-sync command.
+It supports three combat modes: `support` prioritizes song stats, `dmg`
+prioritizes melee damage, accuracy, attack, and haste, and `hybrid` blends the
+two (favoring melee). The default is `hybrid`. Weapon scoring uses damage and
+delay instead of raw damage, so a slow high-damage staff does not automatically
+beat faster dual-wield weapons. Song-casting sets remain support-focused in all
+three modes.
 It evaluates the character's currently available, equippable gear with custom
 Bard logic and selects equipment for each situation represented by the Idle,
 Engaged, Song, BuffSong, and individual song-family sets. The scoring favors the

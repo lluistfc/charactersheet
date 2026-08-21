@@ -1,7 +1,7 @@
 addon.author    = 'Project Tako';
 addon.author    = 'Project Tako';
 addon.name      = 'charactersheet';
-addon.version   = '3.2.0';
+addon.version   = '3.3.0';
 addon.desc      = 'Compact character sheet for equipment, stats, skills, and abilities.';
 addon.link      = 'https://ashitaxi.com/';
 
@@ -119,8 +119,14 @@ ashita.events.register('command', 'charactersheet_command_cb', function (e)
 
     local command = args[2] and args[2]:lower() or 'config';
     if (command == 'syncbrd') then
+        local mode = args[3] and args[3]:lower() or 'hybrid';
+        if (mode ~= 'support' and mode ~= 'dmg' and mode ~= 'hybrid') then
+            print(chat.header(addon.name):append(chat.error(
+                'Usage: /charactersheet syncbrd [support|dmg|hybrid]')));
+            return;
+        end
         print(chat.header(addon.name):append(chat.message(
-            'BRD sync: exporting current equippable gear...')));
+            ('BRD sync (%s): exporting current equippable gear...'):format(mode))));
         local success, message = gear_export.run();
         if (not success) then
             print(chat.header(addon.name):append(chat.error('BRD sync failed: ' .. message)));
@@ -128,7 +134,7 @@ ashita.events.register('command', 'charactersheet_command_cb', function (e)
         end
 
         print(chat.header(addon.name):append(chat.message(message)));
-        local updated, update_message = brd_profile_sync.run();
+        local updated, update_message = brd_profile_sync.run(mode);
         if (not updated) then
             print(chat.header(addon.name):append(chat.error('BRD sync failed: ' .. update_message)));
             return;
