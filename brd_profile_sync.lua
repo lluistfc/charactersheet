@@ -7,6 +7,11 @@ local slot_names = {
 
 local containers = { 0, 8, 10, 11, 12, 13, 14, 15, 16 };
 
+local excluded_items = {
+    ['caliber ring'] = true,
+    ['facility ring'] = true,
+};
+
 local function resource_text(field)
     if (field == nil) then return ''; end
     local ok, value = pcall(function () return field[1]; end);
@@ -77,13 +82,15 @@ local function inventory_items()
             if (instance ~= nil and instance.Id > 0 and instance.Count > 0) then
                 local resource = resources:GetItemById(instance.Id);
                 if (resource ~= nil) then
+                    local name = resource_text(resource.Name);
                     local jobs = tonumber(resource.Jobs) or 0;
                     local slots = tonumber(resource.Slots) or 0;
                     if (slots > 0 and (tonumber(resource.Level) or 0) <= level
-                        and bit.band(jobs, math.pow(2, job)) ~= 0) then
+                        and bit.band(jobs, math.pow(2, job)) ~= 0
+                        and not excluded_items[name:lower()]) then
                         result[#result + 1] = {
                             key = container .. ':' .. index,
-                            name = resource_text(resource.Name),
+                            name = name,
                             text = resource_text(resource.Description):lower(),
                             slots = slots,
                             damage = tonumber(resource.Damage) or 0,
